@@ -1,0 +1,63 @@
+public void MarkInventTrans(TradeInventTransId 	_inventMarkingIssueTransId, 
+							TradeInventTransId 	_inventReceiptMarkedTransId,
+							InventDimId			_InventDimId,
+							InventQty 			_qtyToMark)
+{
+        ttsbegin;
+        
+        InventTrans             issueInventTrans, receiptInventTrans;        
+        InventQty               qtyToMark;
+        TmpInventTransMark      tmpRec;
+
+        Map mapMarkNow = new Map(typeName2Type(extendedTypeStr(RecId)), Types::Record);
+
+		//Issue InventTrans
+        InventTransOriginId issueInventTransOriginId    = InventTransOrigin::findByInventTransId(_inventMarkingIssueTransId).RecId;
+        
+		select firstonly issueInventTrans
+			where issueInventTrans.InventTransOrigin == issueInventTransOriginId
+			   && issueInventTrans.InventDimId		 == _InventDimId;
+		
+		        
+        //Receipt InventTrans        
+        InventTransOriginId receiptInventTransOriginId  = InventTransOrigin::findByInventTransId(_inventReceiptMarkedTransId).RecId;
+		
+        select firstonly receiptInventTrans
+			where receiptInventTrans.InventTransOrigin == receiptInventTransOriginId
+			   && receiptInventTrans.InventDimId		 == _InventDimId;
+		              
+        
+        //get reference TmpInventTransMark records
+        InventTransMarkCollection collection = TmpInventTransMark::markingCollection(InventTransOrigin::find(issueInventTransOriginId), 
+																				issueInventTrans.inventDim(), 
+																				issueInventTrans.Qty);
+        collection.insertCollectionToTmpTable(tmpRec);
+        
+        select firstonly forupdate tmpRec
+                        where tmpRec.InventTransOrigin == receiptInventTransOriginId
+                           && tmpRec.InventDimId       == receiptInventTrans.inventDimId;
+                           
+        
+		if (!tmpRec)
+		{
+			throw error("No se ha podido marcar las transacciones");
+		}
+		
+        qtyToMark = _qtyToMark;
+        
+		if(_qtyToMark < 0)
+        {
+            qtyToMark = -(_qtyToMark);
+        }
+        
+        tmpRec.QtyMarkNow = qtyToMark;      
+        tmpRec.QtyRemain -= tmpRec.QtyMarkNow;  
+		
+        tmpRec.update();
+        
+        mapMarkNow.insert(tmpRec.RecId, tmpRec);
+		
+        TmpInventTransMark::updateTmpMark(issueInventTransOriginId,issueInventTrans.inventDim(), -qtyToMark, mapMarkNow.pack());
+                       
+        ttsCommit;
+}
