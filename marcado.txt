@@ -1,4 +1,4 @@
-prueba original3
+prueba Original 13:18
 
 public void MarkInventTrans(TradeInventTransId 	_inventMarkingIssueTransId, 
 							TradeInventTransId 	_inventReceiptMarkedTransId,
